@@ -104,6 +104,7 @@ export const n8nAuthMiddleware = async (req, res, next) => {
       credentialName: credential.name,
       restaurantId: credential.restaurant_id,
     };
+    req.restaurantId = credential.restaurant_id;
 
     next();
   } catch (err) {

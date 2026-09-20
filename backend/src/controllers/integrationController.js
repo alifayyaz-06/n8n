@@ -8,6 +8,7 @@
 
 import { supabase } from '../db.js';
 import crypto from 'crypto';
+import { orderService } from '../services/orderService.js';
 
 /**
  * POST /api/integrations/orders
@@ -313,6 +314,53 @@ export const getOrCreateIntegrationKey = async (req, res) => {
       success: false,
       message: 'Failed to manage integration key.',
       error: err.message,
+    });
+  }
+};
+
+/**
+ * GET /api/integrations/orders/:id/status
+ *
+ * Retrieves current order status, customer name, and customer phone number
+ * for an order belonging strictly to the authenticated restaurant.
+ */
+export const getIntegrationOrderStatus = async (req, res) => {
+  try {
+    const restaurantId = req.restaurantId || req.integration?.restaurantId;
+    const { id } = req.params;
+
+    if (!restaurantId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized integration access.',
+      });
+    }
+
+    const order = await orderService.getOrderById(id, restaurantId);
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: `Order with ID '${id}' was not found for this restaurant.`,
+        error: 'ORDER_NOT_FOUND',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        orderId: order.orderNumber || order.id,
+        status: order.status,
+        customerName: order.customerName,
+        phoneNumber: order.customerPhone || order.phone,
+      },
+    });
+  } catch (err) {
+    console.error('❌ getIntegrationOrderStatus exception:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve integration order status.',
+      error: 'DATABASE_ERROR',
     });
   }
 };

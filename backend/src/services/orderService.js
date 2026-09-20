@@ -91,18 +91,18 @@ export const orderService = {
       const { data, error } = await supabase
         .from('orders')
         .select('*, items:order_items(*)')
-        .eq('id', id)
         .eq('restaurant_id', restaurantId)
-        .single();
+        .or(`id.eq.${id},order_number.eq.${id}`)
+        .maybeSingle();
 
       if (error || !data) {
-        return fallbackStore.find((o) => o.id === id && o.restaurantId === restaurantId) || null;
+        return fallbackStore.find((o) => (o.id === id || o.orderNumber === id) && o.restaurantId === restaurantId) || null;
       }
 
       return formatSupabaseOrder(data);
     } catch (err) {
       console.warn(`⚠️ Supabase getOrderById exception:`, err.message);
-      return fallbackStore.find((o) => o.id === id && o.restaurantId === restaurantId) || null;
+      return fallbackStore.find((o) => (o.id === id || o.orderNumber === id) && o.restaurantId === restaurantId) || null;
     }
   },
 
