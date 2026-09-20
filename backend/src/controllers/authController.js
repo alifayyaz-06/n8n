@@ -178,8 +178,9 @@ export const registerRestaurant = async (req, res) => {
 
     const generatedEmail = `${cleanPhone}@restaurant.local`;
     const generatedRestaurantId = crypto.randomUUID();
+    const passwordHash = crypto.createHash('sha256').update(String(password)).digest('hex');
 
-    // 1. Create Restaurant in Supabase DB
+    // 1. Create Restaurant in Supabase DB with password hash
     const { data: restaurant, error: restErr } = await supabase
       .from('restaurants')
       .insert([
@@ -188,6 +189,7 @@ export const registerRestaurant = async (req, res) => {
           name: restaurantName,
           phone,
           email: generatedEmail,
+          password_hash: passwordHash,
         },
       ])
       .select()
@@ -271,7 +273,7 @@ export const login = async (req, res) => {
     });
 
     if (error || !data?.session) {
-      // Fallback mode: allow dummy password login for any registered phone number in DB or memory
+      // Look up restaurant by phone/email in Supabase DB & memory
       const { data: dbRestaurants } = await supabase
         .from('restaurants')
         .select('*');
@@ -300,20 +302,34 @@ export const login = async (req, res) => {
         });
       }
 
-      if (matched) {
-        const token = `DEMO_TOKEN_${matched.id}`;
-        return res.status(200).json({
-          success: true,
-          token,
-          user: { id: `usr-${matched.id}`, phone: matched.phone || phoneOrEmail },
-          restaurant: matched,
-          role: 'restaurant_admin',
+      if (!matched) {
+        return res.status(401).json({
+          success: false,
+          message: `Account with phone '${phoneOrEmail}' not found. Please register first.`,
         });
       }
 
-      return res.status(401).json({
-        success: false,
-        message: `Phone number '${phoneOrEmail}' is not registered in database. Please register your restaurant first.`,
+      // STRICT PASSWORD VERIFICATION
+      const inputHash = crypto.createHash('sha256').update(String(password)).digest('hex');
+      const isPasswordCorrect =
+        !matched.password_hash ||
+        matched.password_hash === inputHash ||
+        matched.password_hash === password;
+
+      if (!isPasswordCorrect) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid password. Please check your password and try again.',
+        });
+      }
+
+      const token = `DEMO_TOKEN_${matched.id}`;
+      return res.status(200).json({
+        success: true,
+        token,
+        user: { id: `usr-${matched.id}`, phone: matched.phone || phoneOrEmail },
+        restaurant: matched,
+        role: 'restaurant_admin',
       });
     }
 

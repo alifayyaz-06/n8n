@@ -9,10 +9,13 @@ CREATE TABLE IF NOT EXISTS public.restaurants (
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE,
     phone VARCHAR(50),
+    password_hash VARCHAR(255),
     address TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE public.restaurants ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
 
 -- 2. Create restaurant_users mapping table
 CREATE TABLE IF NOT EXISTS public.restaurant_users (
