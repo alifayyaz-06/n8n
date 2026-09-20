@@ -67,7 +67,7 @@ export const createIntegrationOrder = async (req, res) => {
     const total = Math.round((subtotal + parsedDeliveryFee - parsedDiscount) * 100) / 100;
 
     // ────────────────────────────────────────────
-    // 4. Generate unique order number
+    // 4. Generate unique order number and primary key ID
     // ────────────────────────────────────────────
 
     const { count, error: countErr } = await supabase
@@ -81,7 +81,8 @@ export const createIntegrationOrder = async (req, res) => {
 
     const orderSequence = (count || 0) + 1;
     const orderNumber = `ORD-${1000 + orderSequence}`;
-    const orderId = orderNumber;
+    const uniqueSuffix = `${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+    const orderId = `ORD-${uniqueSuffix}`;
 
     // ────────────────────────────────────────────
     // 5. Create order + items as a transaction

@@ -117,7 +117,8 @@ export const orderService = {
         .eq('restaurant_id', restaurantId);
 
       const nextIdNumber = 1000 + (count || fallbackStore.length) + 1;
-      const generatedId = `ORD-${nextIdNumber}`;
+      const uniqueSuffix = `${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+      const generatedId = `ORD-${uniqueSuffix}`;
 
       const rawItems = (orderData.items || []).map((item) => ({
         product_name: item.productName || item.name || 'Unnamed Item',
