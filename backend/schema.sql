@@ -136,11 +136,14 @@ CREATE TABLE IF NOT EXISTS public.integration_credentials (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     restaurant_id UUID NOT NULL REFERENCES public.restaurants(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
-    api_key_hash VARCHAR(128) NOT NULL,
+    api_key VARCHAR(255),
+    api_key_hash VARCHAR(128),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE public.integration_credentials ADD COLUMN IF NOT EXISTS api_key VARCHAR(255);
 
 GRANT ALL ON public.integration_credentials TO anon, authenticated, service_role;
 

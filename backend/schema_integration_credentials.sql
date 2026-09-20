@@ -41,11 +41,14 @@ CREATE POLICY "Allow public full access to integration_credentials"
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+ALTER TABLE public.integration_credentials ADD COLUMN IF NOT EXISTS api_key VARCHAR(255);
+
 -- Insert ONLY if no credential exists for this restaurant yet
-INSERT INTO public.integration_credentials (restaurant_id, name, api_key_hash)
+INSERT INTO public.integration_credentials (restaurant_id, name, api_key, api_key_hash)
 SELECT 
     r.id,
     'n8n Gourmet Bistro Integration',
+    'n8n_gourmet_test_key_2026',
     encode(digest('n8n_gourmet_test_key_2026', 'sha256'), 'hex')
 FROM public.restaurants r
 WHERE r.name = 'Gourmet Bistro'

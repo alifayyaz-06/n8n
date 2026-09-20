@@ -245,6 +245,27 @@ export const registerRestaurant = async (req, res) => {
       ]);
     }
 
+    // 3. Automatically generate a unique n8n integration API key for this restaurant
+    const cleanName = restaurantName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const n8nApiKey = `n8n_${cleanName}_${crypto.randomBytes(16).toString('hex')}`;
+    const apiKeyHash = crypto.createHash('sha256').update(n8nApiKey).digest('hex');
+
+    const { error: credErr } = await supabase
+      .from('integration_credentials')
+      .insert([
+        {
+          restaurant_id: restaurant.id,
+          name: `${restaurantName} n8n Integration`,
+          api_key: n8nApiKey,
+          api_key_hash: apiKeyHash,
+          is_active: true,
+        },
+      ]);
+
+    if (credErr) {
+      console.warn('⚠️ Could not insert integration credential on registration:', credErr.message);
+    }
+
     memoryRestaurants.push(restaurant);
 
     const token = `DEMO_TOKEN_${restaurant.id}`;
@@ -253,6 +274,7 @@ export const registerRestaurant = async (req, res) => {
       success: true,
       message: 'Restaurant account created successfully in database!',
       token,
+      n8nApiKey,
       user: { id: authUser?.id || `usr-${Date.now()}`, phone },
       restaurant,
       role: 'restaurant_admin',

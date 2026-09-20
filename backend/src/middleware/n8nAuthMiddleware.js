@@ -45,11 +45,11 @@ export const n8nAuthMiddleware = async (req, res, next) => {
       .update(apiKey)
       .digest('hex');
 
-    // 4. Find the matching active integration credential
+    // 4. Find the matching active integration credential (match by raw api_key OR api_key_hash)
     const { data: credential, error } = await supabase
       .from('integration_credentials')
       .select('id, restaurant_id, name, is_active')
-      .eq('api_key_hash', apiKeyHash)
+      .or(`api_key.eq.${apiKey},api_key_hash.eq.${apiKeyHash}`)
       .maybeSingle();
 
     if (error) {

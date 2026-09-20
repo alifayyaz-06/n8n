@@ -7,11 +7,15 @@
 
 import { Router } from 'express';
 import { n8nAuthMiddleware } from '../middleware/n8nAuthMiddleware.js';
-import { createIntegrationOrder } from '../controllers/integrationController.js';
+import { requireAuth } from '../middleware/authMiddleware.js';
+import { createIntegrationOrder, getOrCreateIntegrationKey } from '../controllers/integrationController.js';
 
 const router = Router();
 
-// n8n → Express → Supabase → Restaurant Order
+// n8n → Express → Supabase → Restaurant Order (Bearer API Key auth)
 router.post('/orders', n8nAuthMiddleware, createIntegrationOrder);
+
+// Retrieve or generate n8n API Key for logged-in restaurant (User JWT auth)
+router.get('/credentials', requireAuth, getOrCreateIntegrationKey);
 
 export default router;

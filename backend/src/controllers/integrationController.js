@@ -7,6 +7,7 @@
  */
 
 import { supabase } from '../db.js';
+import crypto from 'crypto';
 
 /**
  * POST /api/integrations/orders
@@ -231,6 +232,72 @@ export const createIntegrationOrder = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Internal server error while creating order.',
+    });
+  }
+};
+
+/**
+ * GET /api/integrations/credentials (Authenticated via requireAuth)
+ * Returns or generates an n8n API key for the logged-in restaurant
+ */
+export const getOrCreateIntegrationKey = async (req, res) => {
+  try {
+    const restaurantId = req.restaurantId;
+    const restaurantName = req.restaurant?.name || 'Restaurant';
+
+    // Check if active key already exists
+    const { data: existingCred } = await supabase
+      .from('integration_credentials')
+      .select('*')
+      .eq('restaurant_id', restaurantId)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (existingCred) {
+      return res.status(200).json({
+        success: true,
+        credential: existingCred,
+        message: 'Active integration credential retrieved.',
+      });
+    }
+
+    // Generate new key
+    const cleanName = restaurantName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const n8nApiKey = `n8n_${cleanName}_${crypto.randomBytes(16).toString('hex')}`;
+    const apiKeyHash = crypto.createHash('sha256').update(n8nApiKey).digest('hex');
+
+    const { data: newCred, error } = await supabase
+      .from('integration_credentials')
+      .insert([
+        {
+          restaurant_id: restaurantId,
+          name: `${restaurantName} n8n Integration`,
+          api_key: n8nApiKey,
+          api_key_hash: apiKeyHash,
+          is_active: true,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(500).json({
+        success: false,
+        message: `Failed to create integration credential: ${error.message}`,
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      n8nApiKey,
+      credential: newCred,
+      message: 'New n8n integration API key generated successfully.',
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to manage integration key.',
+      error: err.message,
     });
   }
 };
