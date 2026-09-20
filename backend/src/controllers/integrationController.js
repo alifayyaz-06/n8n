@@ -364,3 +364,46 @@ export const getIntegrationOrderStatus = async (req, res) => {
     });
   }
 };
+
+/**
+ * GET /api/integrations/orders
+ *
+ * Retrieves all orders belonging strictly to the authenticated restaurant.
+ * Authenticated via n8nAuthMiddleware (restaurant API Key).
+ * Supports optional ?status= query filter.
+ */
+export const getIntegrationOrders = async (req, res) => {
+  try {
+    const restaurantId = req.restaurantId || req.integration?.restaurantId;
+    const { status } = req.query;
+
+    if (!restaurantId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized integration access.',
+      });
+    }
+
+    const rawOrders = await orderService.getAllOrders(restaurantId, status);
+
+    const formattedOrders = (rawOrders || []).map((order) => ({
+      orderId: order.orderNumber || order.id,
+      status: order.status,
+      customerName: order.customerName,
+      phoneNumber: order.customerPhone || order.phone,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: formattedOrders.length,
+      data: formattedOrders,
+    });
+  } catch (err) {
+    console.error('❌ getIntegrationOrders exception:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve integration orders from database.',
+      error: 'DATABASE_ERROR',
+    });
+  }
+};
