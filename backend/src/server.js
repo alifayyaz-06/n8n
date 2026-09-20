@@ -16,12 +16,24 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const defaultOrigins = ['http://localhost:5173', 'https://n8n-one-tawny.vercel.app'];
+const envOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map((url) => url.trim().replace(/\/$/, ''))
+  : [];
+
+const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins])).filter(Boolean);
 
 // CORS middleware setup
 app.use(
   cors({
-    origin: FRONTEND_URL,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (n8n, Postman, curl, server-to-server)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
@@ -36,6 +48,7 @@ app.get('/api/health', async (req, res) => {
   res.status(200).json({
     status: 'UP',
     database: dbConnected ? 'CONNECTED' : 'DISCONNECTED',
+    environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
     service: 'Multi-Tenant Restaurant Order Portal API',
   });
@@ -83,8 +96,10 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, async () => {
-  console.log(`🚀 Multi-Tenant Restaurant Backend API running on http://localhost:${PORT}`);
-  console.log(`📡 CORS enabled for: ${FRONTEND_URL}`);
+// Bind to 0.0.0.0 so Render/Docker/Cloud can route traffic
+app.listen(PORT, '0.0.0.0', async () => {
+  console.log(`🚀 Multi-Tenant Restaurant Backend API running on port ${PORT}`);
+  console.log(`📡 CORS allowed origins: ${allowedOrigins.join(', ')}`);
+  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
   await testSupabaseConnection();
 });
