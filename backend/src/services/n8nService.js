@@ -7,11 +7,9 @@
 
 export const sendOrderStatusWebhook = async (order) => {
   try {
-    const webhookUrl = process.env.N8N_ORDER_STATUS_WEBHOOK_URL;
-    if (!webhookUrl || webhookUrl.trim() === '') {
-      console.log('ℹ️ N8N_ORDER_STATUS_WEBHOOK_URL is not set. Skipping n8n status webhook notification.');
-      return false;
-    }
+    const webhookUrl =
+      process.env.N8N_ORDER_STATUS_WEBHOOK_URL ||
+      'https://ali5665.app.n8n.cloud/webhook/order-status';
 
     if (!order) {
       console.warn('⚠️ sendOrderStatusWebhook called with null/undefined order object.');
