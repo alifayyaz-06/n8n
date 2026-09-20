@@ -45,23 +45,42 @@ export const n8nAuthMiddleware = async (req, res, next) => {
       .update(apiKey)
       .digest('hex');
 
-    // 4. Find the matching active integration credential (match by raw api_key OR api_key_hash)
-    const { data: credential, error } = await supabase
+    console.log(`📡 [n8n Webhook] Incoming request received. Validating API Key: '${apiKey.slice(0, 10)}...'`);
+
+    // 4. Query integration_credentials safely (try hash lookup first to prevent column errors)
+    let credential = null;
+    let dbError = null;
+
+    const { data: hashCred, error: hashErr } = await supabase
       .from('integration_credentials')
       .select('id, restaurant_id, name, is_active')
-      .or(`api_key.eq.${apiKey},api_key_hash.eq.${apiKeyHash}`)
+      .eq('api_key_hash', apiKeyHash)
       .maybeSingle();
 
-    if (error) {
-      console.error('❌ n8nAuthMiddleware DB error:', error.message);
-      return res.status(500).json({
-        success: false,
-        message: 'Internal server error during authentication.',
-      });
+    if (hashCred) {
+      credential = hashCred;
+    } else {
+      if (hashErr) dbError = hashErr;
+      // Fallback: try querying by raw api_key if column exists
+      try {
+        const { data: rawCred } = await supabase
+          .from('integration_credentials')
+          .select('id, restaurant_id, name, is_active')
+          .eq('api_key', apiKey)
+          .maybeSingle();
+        if (rawCred) credential = rawCred;
+      } catch (e) {
+        // Ignore column missing error on raw key fallback
+      }
+    }
+
+    if (dbError && !credential) {
+      console.error('❌ n8nAuthMiddleware DB error:', dbError.message);
     }
 
     // Key not found → invalid
     if (!credential) {
+      console.warn(`⚠️ [n8n Webhook] Rejected invalid API key: '${apiKey}'`);
       return res.status(401).json({
         success: false,
         message: 'Invalid integration API key.',
@@ -70,11 +89,14 @@ export const n8nAuthMiddleware = async (req, res, next) => {
 
     // 5. Check is_active
     if (!credential.is_active) {
+      console.warn(`⚠️ [n8n Webhook] Rejected inactive credential: '${credential.name}'`);
       return res.status(401).json({
         success: false,
         message: 'Integration credential is inactive. Contact administrator.',
       });
     }
+
+    console.log(`✅ [n8n Webhook] Authenticated successfully for restaurant ID: ${credential.restaurant_id} (${credential.name})`);
 
     // 6. Attach the authenticated restaurant context
     req.integration = {
