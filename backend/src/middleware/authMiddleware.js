@@ -28,17 +28,27 @@ export const requireAuth = async (req, res, next) => {
     const { data: authData, error: authErr } = await supabase.auth.getUser(token);
 
     if (authErr || !authData?.user) {
-      // In development fallback mode, if token is mock token "DEMO_TOKEN_GOURMET" or "DEMO_TOKEN_LAHORE"
-      if (token === 'DEMO_TOKEN_GOURMET') {
-        req.user = { id: 'usr-gourmet-1', email: 'admin@gourmet.com' };
-        req.restaurantId = 'r0000000-0000-0000-0000-000000000001';
-        req.restaurant = { id: 'r0000000-0000-0000-0000-000000000001', name: 'Gourmet Bistro' };
-        req.role = 'restaurant_admin';
-        return next();
-      } else if (token === 'DEMO_TOKEN_LAHORE') {
-        req.user = { id: 'usr-lahore-1', email: 'admin@lahoregrill.com' };
-        req.restaurantId = 'r0000000-0000-0000-0000-000000000002';
-        req.restaurant = { id: 'r0000000-0000-0000-0000-000000000002', name: 'Lahore Grill' };
+      // In development fallback mode, support dynamic DEMO_TOKEN_<restaurant_id>
+      if (token && token.startsWith('DEMO_TOKEN_')) {
+        const restId = token.replace('DEMO_TOKEN_', '');
+        
+        let targetRestaurant = null;
+        if (restId === 'r0000000-0000-0000-0000-000000000001') {
+          targetRestaurant = { id: 'r0000000-0000-0000-0000-000000000001', name: 'Gourmet Bistro' };
+        } else if (restId === 'r0000000-0000-0000-0000-000000000002') {
+          targetRestaurant = { id: 'r0000000-0000-0000-0000-000000000002', name: 'Lahore Grill' };
+        } else {
+          const { data: dbRest } = await supabase
+            .from('restaurants')
+            .select('*')
+            .eq('id', restId)
+            .maybeSingle();
+          targetRestaurant = dbRest;
+        }
+
+        req.user = { id: `usr-${restId}`, email: 'admin@restaurant.local' };
+        req.restaurantId = restId || 'r0000000-0000-0000-0000-000000000001';
+        req.restaurant = targetRestaurant || { id: req.restaurantId, name: 'Restaurant Portal' };
         req.role = 'restaurant_admin';
         return next();
       }
