@@ -1,10 +1,10 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, ShoppingBag, Bike, Settings, Store, LogOut } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Bike, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export function Sidebar() {
-  const { restaurant, logout } = useAuth();
+  const { logout } = useAuth();
 
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -16,17 +16,6 @@ export function Sidebar() {
   return (
     <aside className="hidden md:flex w-64 border-r border-slate-200 bg-white flex-col justify-between p-4 min-h-[calc(100vh-4rem)] flex-shrink-0">
       <div className="space-y-4">
-        {/* Tenant Active Card */}
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-          <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-            <Store className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Active Tenant</span>
-          </div>
-          <p className="text-sm font-extrabold text-slate-900 truncate">
-            {restaurant?.name || 'Gourmet Bistro'}
-          </p>
-        </div>
-
         {/* Navigation Items */}
         <nav className="space-y-1.5">
           {navItems.map((item) => {
