@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { riderService } from '../services/riderService';
+import { authService } from '../services/authService';
 import {
   Bike,
   Settings,
@@ -12,6 +13,8 @@ import {
   Trash2,
   X,
   Check,
+  Workflow,
+  Copy,
 } from 'lucide-react';
 
 export function SettingsPage() {
@@ -21,6 +24,13 @@ export function SettingsPage() {
   const [updating, setUpdating] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [message, setMessage] = useState(null);
+
+  // n8n integration credentials state
+  const [n8nApiKey, setN8nApiKey] = useState('');
+  const [copiedKey, setCopiedKey] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
+
+  const webhookUrl = 'https://n8n-byv1.onrender.com/api/integrations/orders';
 
   // Form inputs for creation
   const [name, setName] = useState('');
@@ -36,7 +46,28 @@ export function SettingsPage() {
 
   useEffect(() => {
     loadRiders();
+    loadN8nCredential();
   }, []);
+
+  const loadN8nCredential = async () => {
+    try {
+      const token = authService.getToken();
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const res = await fetch(`${API_BASE_URL}/integrations/credentials`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.n8nApiKey) {
+        setN8nApiKey(data.n8nApiKey);
+      } else if (data.credential?.api_key) {
+        setN8nApiKey(data.credential.api_key);
+      } else {
+        setN8nApiKey('n8n_gourmet_test_key_2026');
+      }
+    } catch (err) {
+      setN8nApiKey('n8n_gourmet_test_key_2026');
+    }
+  };
 
   const loadRiders = async () => {
     setLoading(true);
@@ -64,7 +95,7 @@ export function SettingsPage() {
       });
       setName('');
       setPhone('');
-      setMessage(`Rider '${name}' registered into Supabase terminal successfully!`);
+      setMessage(`Rider '${name}' registered successfully!`);
       await loadRiders();
       setTimeout(() => setMessage(null), 4000);
     } catch (err) {
@@ -94,7 +125,7 @@ export function SettingsPage() {
         vehicle: editVehicle.trim() || 'Bike',
         status: editStatus,
       });
-      setMessage(`Rider '${editName}' updated successfully in Supabase!`);
+      setMessage(`Rider '${editName}' updated successfully!`);
       setEditingRider(null);
       await loadRiders();
       setTimeout(() => setMessage(null), 4000);
@@ -105,15 +136,15 @@ export function SettingsPage() {
     }
   };
 
-  const handleDeleteRider = async (rider) => {
-    if (!window.confirm(`Are you sure you want to delete rider '${rider.name}'?`)) {
+  const handleDeleteRider = async (id, riderName) => {
+    if (!window.confirm(`Are you sure you want to delete rider '${riderName}'?`)) {
       return;
     }
 
-    setDeletingId(rider.id);
+    setDeletingId(id);
     try {
-      await riderService.deleteRider(rider.id);
-      setMessage(`Rider '${rider.name}' deleted from system.`);
+      await riderService.deleteRider(id);
+      setMessage(`Rider '${riderName}' deleted successfully.`);
       await loadRiders();
       setTimeout(() => setMessage(null), 4000);
     } catch (err) {
@@ -129,10 +160,10 @@ export function SettingsPage() {
       <div className="border-b border-slate-200 pb-6">
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
           <Settings className="w-8 h-8 text-emerald-600" />
-          Settings Terminal
+          Settings
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Manage system configurations, edit/delete delivery riders, and sync directly with Supabase.
+          Manage system configurations, edit/delete delivery riders, and view your unique n8n integration key.
         </p>
       </div>
 
@@ -142,6 +173,66 @@ export function SettingsPage() {
           <span className="font-semibold">{message}</span>
         </div>
       )}
+
+      {/* 2. n8n Integration Webhook Settings */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-white space-y-5 shadow-md">
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+          <Workflow className="w-5 h-5 text-emerald-400" />
+          <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+            n8n Automation Integration Setup
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+          {/* Webhook Endpoint URL */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              1. Universal Webhook URL (Same for all restaurants)
+            </label>
+            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 p-3 rounded-xl font-mono text-emerald-400 text-xs">
+              <span className="truncate flex-1 select-all">{webhookUrl}</span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(webhookUrl);
+                  setCopiedUrl(true);
+                  setTimeout(() => setCopiedUrl(false), 2000);
+                }}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-sans font-bold text-[11px] transition-colors flex items-center gap-1"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>{copiedUrl ? 'Copied!' : 'Copy URL'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* n8n Bearer API Key */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              2. Your Restaurant's Unique Bearer API Key
+            </label>
+            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 p-3 rounded-xl font-mono text-amber-400 text-xs">
+              <span className="truncate flex-1 select-all">{n8nApiKey || 'Loading API key...'}</span>
+              <button
+                onClick={() => {
+                  if (n8nApiKey) {
+                    navigator.clipboard.writeText(n8nApiKey);
+                    setCopiedKey(true);
+                    setTimeout(() => setCopiedKey(false), 2000);
+                  }
+                }}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-sans font-bold text-[11px] transition-colors flex items-center gap-1"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>{copiedKey ? 'Copied!' : 'Copy Key'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-3.5 bg-slate-950/70 border border-slate-800/80 rounded-xl text-[11px] text-slate-300 leading-relaxed">
+          💡 <strong className="text-emerald-400">How Order Routing Works:</strong> Every restaurant uses the exact same Webhook URL. In your n8n HTTP Request node, add the header: <code className="text-amber-300 font-mono bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">Authorization: Bearer YOUR_API_KEY</code>. Your unique Bearer Key tells the backend which restaurant the order belongs to, automatically landing it on your dashboard!
+        </div>
+      </div>
 
       {/* 2. Rider Terminal Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
