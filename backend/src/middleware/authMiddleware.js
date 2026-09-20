@@ -33,22 +33,25 @@ export const requireAuth = async (req, res, next) => {
         const restId = token.replace('DEMO_TOKEN_', '');
         
         let targetRestaurant = null;
-        if (restId === 'r0000000-0000-0000-0000-000000000001') {
-          targetRestaurant = { id: 'r0000000-0000-0000-0000-000000000001', name: 'Gourmet Bistro' };
-        } else if (restId === 'r0000000-0000-0000-0000-000000000002') {
-          targetRestaurant = { id: 'r0000000-0000-0000-0000-000000000002', name: 'Lahore Grill' };
-        } else {
-          const { data: dbRest } = await supabase
+        let { data: dbRest } = await supabase
+          .from('restaurants')
+          .select('*')
+          .eq('id', restId)
+          .maybeSingle();
+
+        if (!dbRest) {
+          const nameMatch = restId.toLowerCase().includes('lahore') ? 'Lahore Grill' : 'Gourmet Bistro';
+          const { data: nameRest } = await supabase
             .from('restaurants')
             .select('*')
-            .eq('id', restId)
+            .ilike('name', `%${nameMatch}%`)
             .maybeSingle();
-          targetRestaurant = dbRest;
+          dbRest = nameRest;
         }
 
-        req.user = { id: `usr-${restId}`, email: 'admin@restaurant.local' };
-        req.restaurantId = restId || 'r0000000-0000-0000-0000-000000000001';
-        req.restaurant = targetRestaurant || { id: req.restaurantId, name: 'Restaurant Portal' };
+        req.user = { id: `usr-${dbRest?.id || restId}`, email: dbRest?.email || 'admin@restaurant.local' };
+        req.restaurantId = dbRest?.id || restId;
+        req.restaurant = dbRest || { id: req.restaurantId, name: 'Restaurant Portal' };
         req.role = 'restaurant_admin';
         return next();
       }

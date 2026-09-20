@@ -65,7 +65,8 @@ export const orderService = {
 
       const { data, error } = await query;
 
-      if (error || !data || data.length === 0) {
+      if (error) {
+        console.warn('⚠️ Supabase getAllOrders error:', error.message);
         const scopedFallback = fallbackStore.filter((o) => o.restaurantId === restaurantId);
         if (statusFilter) {
           return scopedFallback.filter(
@@ -75,10 +76,10 @@ export const orderService = {
         return scopedFallback;
       }
 
-      return data.map(formatSupabaseOrder);
+      return (data || []).map(formatSupabaseOrder);
     } catch (err) {
-      console.warn('⚠️ Supabase getAllOrders exception, using fallback:', err.message);
-      return fallbackStore.filter((o) => o.restaurantId === restaurantId);
+      console.warn('⚠️ Supabase getAllOrders exception:', err.message);
+      return [];
     }
   },
 
