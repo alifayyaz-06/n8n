@@ -3,6 +3,7 @@
  */
 
 import { orderService } from '../services/orderService.js';
+import { sendOrderStatusWebhook } from '../services/n8nService.js';
 import { ORDER_STATUSES } from '../models/orderModel.js';
 
 export const getOrders = async (req, res) => {
@@ -121,6 +122,11 @@ export const updateOrderStatus = async (req, res) => {
         });
       }
     }
+
+    // Trigger n8n webhook after successful database status update
+    sendOrderStatusWebhook(result.order).catch((err) => {
+      console.warn('⚠️ Webhook trigger background error:', err.message);
+    });
 
     return res.status(200).json({
       success: true,
