@@ -1,0 +1,43 @@
+// Prisma Schema for Restaurant Order Management Portal
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  orderNumber     String
+  customerName    String
+  phone           String
+  address         String
+  orderType       String      @default("DELIVERY")
+  subtotal        Float       @default(0.0)
+  deliveryFee     Float       @default(0.0)
+  discount        Float       @default(0.0)
+  total           Float       @default(0.0)
+  notes           String?
+  status          String      @default("New")
+  rejectionReason String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  items           OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String   @id @default(uuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productName String
+  quantity    Int      @default(1)
+  unitPrice   Float    @default(0.0)
+  total       Float    @default(0.0)
+
+  @@map("order_items")
+}
