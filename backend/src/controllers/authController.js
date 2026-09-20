@@ -292,15 +292,9 @@ export const login = async (req, res) => {
         });
       }
 
-      // Default fallback if phone is not matched in database (e.g. dummy test login)
-      const defaultRest = memoryRestaurants[0];
-      const token = `DEMO_TOKEN_${defaultRest.id}`;
-      return res.status(200).json({
-        success: true,
-        token,
-        user: { id: `usr-${defaultRest.id}`, phone: phoneOrEmail },
-        restaurant: defaultRest,
-        role: 'restaurant_admin',
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid phone number or password. Account not found in database.',
       });
     }
 
