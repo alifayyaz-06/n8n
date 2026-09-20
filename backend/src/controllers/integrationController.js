@@ -44,32 +44,83 @@ export const createIntegrationOrder = async (req, res) => {
     if (typeof rawOrderItems === 'string' && rawOrderItems.trim() !== '') {
       // Split string by line breaks or commas e.g. "2x Zinger Burger, 1x Fries"
       const lines = rawOrderItems.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
-      if (lines.length > 0) {
-        const itemPrice = passedTotal > 0 ? Math.round((passedTotal / lines.length) * 100) / 100 : 0;
-        calculatedItems = lines.map((line) => {
-          const match = line.match(/^(\d+)\s*x?\s*(.+)$/i);
-          const qty = match ? Math.max(1, Number(match[1])) : 1;
-          const pName = match ? match[2].trim() : line;
+      
+      const parsedLines = lines.map((line) => {
+        const match = line.match(/^(\d+)\s*x?\s*(.+)$/i);
+        const qty = match ? Math.max(1, Number(match[1])) : 1;
+        const pName = match ? match[2].trim() : line;
+        return { pName, qty };
+      });
+
+      const totalQty = parsedLines.reduce((sum, l) => sum + l.qty, 0) || 1;
+
+      if (passedTotal > 0) {
+        const unitPricePerQty = passedTotal / totalQty;
+        calculatedItems = parsedLines.map((l, index) => {
+          // For the last item, ensure sum matches passedTotal exactly to avoid rounding loss
+          const isLast = index === parsedLines.length - 1;
+          const unitPrice = Math.round(unitPricePerQty * 100) / 100;
+          const itemTotal = isLast
+            ? Math.round((passedTotal - parsedLines.slice(0, index).reduce((acc, prev) => acc + (Math.round(prev.qty * unitPricePerQty * 100) / 100), 0)) * 100) / 100
+            : Math.round(l.qty * unitPricePerQty * 100) / 100;
+
           return {
-            product_name: pName,
-            quantity: qty,
-            unit_price: itemPrice,
-            total: itemPrice * qty,
+            product_name: l.pName,
+            quantity: l.qty,
+            unit_price: unitPrice,
+            total: itemTotal,
           };
         });
+      } else {
+        calculatedItems = parsedLines.map((l) => ({
+          product_name: l.pName,
+          quantity: l.qty,
+          unit_price: 0,
+          total: 0,
+        }));
       }
     } else if (Array.isArray(rawOrderItems) && rawOrderItems.length > 0) {
-      calculatedItems = rawOrderItems.map((item) => {
+      const parsedArray = rawOrderItems.map((item) => {
         const pName = typeof item === 'string' ? item : String(item.productName || item.name || item.product_name || 'Item').trim();
         const qty = typeof item === 'object' ? Math.max(1, Number(item.quantity ?? item.qty ?? 1) || 1) : 1;
         const price = typeof item === 'object' ? Math.max(0, Number(item.unitPrice ?? item.price ?? 0) || 0) : 0;
-        return {
-          product_name: pName,
-          quantity: qty,
-          unit_price: price,
-          total: Math.round(qty * price * 100) / 100,
-        };
+        return { pName, qty, price };
       });
+
+      const hasPrices = parsedArray.some((i) => i.price > 0);
+
+      if (hasPrices) {
+        calculatedItems = parsedArray.map((i) => ({
+          product_name: i.pName,
+          quantity: i.qty,
+          unit_price: i.price,
+          total: Math.round(i.qty * i.price * 100) / 100,
+        }));
+      } else if (passedTotal > 0) {
+        const totalQty = parsedArray.reduce((sum, i) => sum + i.qty, 0) || 1;
+        const unitPricePerQty = passedTotal / totalQty;
+        calculatedItems = parsedArray.map((i, index) => {
+          const isLast = index === parsedArray.length - 1;
+          const unitPrice = Math.round(unitPricePerQty * 100) / 100;
+          const itemTotal = isLast
+            ? Math.round((passedTotal - parsedArray.slice(0, index).reduce((acc, prev) => acc + (Math.round(prev.qty * unitPricePerQty * 100) / 100), 0)) * 100) / 100
+            : Math.round(i.qty * unitPricePerQty * 100) / 100;
+
+          return {
+            product_name: i.pName,
+            quantity: i.qty,
+            unit_price: unitPrice,
+            total: itemTotal,
+          };
+        });
+      } else {
+        calculatedItems = parsedArray.map((i) => ({
+          product_name: i.pName,
+          quantity: i.qty,
+          unit_price: 0,
+          total: 0,
+        }));
+      }
     }
 
     if (calculatedItems.length === 0) {
