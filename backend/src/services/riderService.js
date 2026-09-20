@@ -7,10 +7,7 @@ import { supabase } from '../db.js';
 import { mockRiders } from '../data/mockRiders.js';
 import { orderService } from './orderService.js';
 
-let fallbackRiders = mockRiders.map((r) => ({
-  ...r,
-  restaurantId: r.restaurantId || 'r0000000-0000-0000-0000-000000000001',
-}));
+let fallbackRiders = [];
 
 function formatSupabaseRider(row) {
   if (!row) return null;
@@ -38,10 +35,11 @@ export const riderService = {
         .order('created_at', { ascending: false });
 
       let ridersList = [];
-      if (error || !riderRows || riderRows.length === 0) {
+      if (error) {
+        console.warn('⚠️ Supabase getAllRiders error:', error.message);
         ridersList = fallbackRiders.filter((r) => r.restaurantId === restaurantId);
       } else {
-        ridersList = riderRows.map(formatSupabaseRider);
+        ridersList = (riderRows || []).map(formatSupabaseRider);
       }
 
       // Fetch all tenant orders to compute pending amounts per rider
@@ -70,25 +68,8 @@ export const riderService = {
 
       return ridersWithStats;
     } catch (err) {
-      console.warn('⚠️ Supabase getAllRiders exception, returning fallback stats:', err.message);
-      const allOrders = await orderService.getAllOrders(restaurantId);
-      const scopedFallback = fallbackRiders.filter((r) => r.restaurantId === restaurantId);
-      return scopedFallback.map((rider) => {
-        const assignedOrders = allOrders.filter(
-          (o) => o.riderId === rider.id || o.riderName?.toLowerCase() === rider.name.toLowerCase()
-        );
-        const pendingOrders = assignedOrders.filter(
-          (o) => !o.riderSettled && o.status !== 'Rejected'
-        );
-        const pendingAmount = pendingOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
-        return {
-          ...rider,
-          assignedOrdersCount: assignedOrders.length,
-          completedCount: assignedOrders.filter((o) => o.status === 'Completed').length,
-          pendingAmount,
-          pendingOrders,
-        };
-      });
+      console.warn('⚠️ Supabase getAllRiders exception:', err.message);
+      return [];
     }
   },
 
@@ -101,11 +82,11 @@ export const riderService = {
   },
 
   /**
-   * Create a new rider attached strictly to restaurantId
+   * Create a new rider attached strictly to restaurantId foreign key
    */
   createRider: async (riderData, restaurantId) => {
     try {
-      const generatedId = `RIDER-${Date.now().toString().slice(-4)}`;
+      const generatedId = `RIDER-${Date.now().toString().slice(-6)}`;
       const newRecord = {
         id: generatedId,
         restaurant_id: restaurantId,
@@ -122,7 +103,7 @@ export const riderService = {
         .single();
 
       if (error || !data) {
-        console.warn('⚠️ Supabase createRider warning, using fallback store:', error?.message);
+        console.warn('⚠️ Supabase createRider error:', error?.message);
         const fallbackRecord = {
           ...newRecord,
           restaurantId,
@@ -139,7 +120,6 @@ export const riderService = {
       }
 
       const formatted = formatSupabaseRider(data);
-      fallbackRiders.unshift(formatted);
       return {
         ...formatted,
         assignedOrdersCount: 0,
@@ -148,24 +128,8 @@ export const riderService = {
         pendingOrders: [],
       };
     } catch (err) {
-      console.warn('⚠️ Supabase createRider exception, fallback used:', err.message);
-      const newRider = {
-        id: `RIDER-${Date.now().toString().slice(-4)}`,
-        restaurantId,
-        name: riderData.name,
-        phone: riderData.phone || 'N/A',
-        vehicle: riderData.vehicle || 'Bike',
-        status: riderData.status || 'Active',
-        createdAt: new Date().toISOString(),
-      };
-      fallbackRiders.unshift(newRider);
-      return {
-        ...newRider,
-        assignedOrdersCount: 0,
-        completedCount: 0,
-        pendingAmount: 0,
-        pendingOrders: [],
-      };
+      console.error('❌ Supabase createRider exception:', err.message);
+      throw err;
     }
   },
 
