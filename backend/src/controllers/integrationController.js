@@ -20,54 +20,73 @@ export const createIntegrationOrder = async (req, res) => {
     const restaurantId = req.integration.restaurantId;
     const body = req.body || {};
 
-    // Normalize customer details with smart defaults
-    const customerName = String(body.customerName || body.customer_name || body.name || body.clientName || 'Guest Customer').trim();
-    const phone = String(body.phone || body.customerPhone || body.customer_phone || body.mobile || 'N/A').trim();
-    const address = String(body.address || body.deliveryAddress || body.customerAddress || 'Delivery Address').trim();
-    const orderType = String(body.orderType || body.order_type || 'DELIVERY').toUpperCase();
-    const notes = String(body.notes || body.instructions || body.comment || '').trim();
+    // ────────────────────────────────────────────
+    // 1. Extract & normalize the 6 required n8n fields:
+    //    { orderId, customerName, phoneNumber, orderItems, totalAmount, deliveryAddress }
+    // ────────────────────────────────────────────
 
-    const parsedDeliveryFee = Math.max(0, Number(body.deliveryFee ?? body.delivery_fee ?? 0) || 0);
-    const parsedDiscount = Math.max(0, Number(body.discount ?? 0) || 0);
-
-    // Flexible items array normalization (supports items, order_items, products, or top-level single item)
-    let rawItems = body.items || body.order_items || body.products || [];
-    if (!Array.isArray(rawItems) || rawItems.length === 0) {
-      if (body.productName || body.product_name || body.item) {
-        rawItems = [{
-          productName: body.productName || body.product_name || body.item,
-          quantity: body.quantity || body.qty || 1,
-          unitPrice: body.unitPrice || body.unit_price || body.price || 0,
-        }];
-      } else {
-        rawItems = [{
-          productName: 'n8n Order Item',
-          quantity: 1,
-          unitPrice: 0,
-        }];
-      }
-    }
-
-    // Calculate totals on the backend
-    const calculatedItems = rawItems.map((item) => {
-      const pName = String(item.productName || item.product_name || item.name || item.title || 'Item').trim();
-      const quantity = Math.max(1, Number(item.quantity ?? item.qty ?? 1) || 1);
-      const unitPrice = Math.max(0, Number(item.unitPrice ?? item.unit_price ?? item.price ?? 0) || 0);
-      const itemTotal = Math.round(quantity * unitPrice * 100) / 100;
-
-      return {
-        product_name: pName,
-        quantity,
-        unit_price: unitPrice,
-        total: itemTotal,
-      };
-    });
-
-    const subtotal = calculatedItems.reduce((sum, item) => sum + item.total, 0);
-    const total = Math.round((subtotal + parsedDeliveryFee - parsedDiscount) * 100) / 100;
+    const n8nOrderId = body.orderId || body.order_id || body.orderNumber;
+    const customerName = String(body.customerName || body.customer_name || body.name || 'Guest Customer').trim();
+    const phone = String(body.phoneNumber || body.phone || body.customerPhone || body.mobile || 'N/A').trim();
+    const address = String(body.deliveryAddress || body.address || body.customerAddress || 'Delivery Address').trim();
+    
+    // Total Amount parsing
+    const rawTotalStr = String(body.totalAmount ?? body.total ?? body.total_amount ?? 0);
+    const passedTotal = Math.max(0, Number(rawTotalStr.replace(/[^\d.]/g, '')) || 0);
 
     // ────────────────────────────────────────────
-    // 4. Generate unique order number and primary key ID
+    // 2. Parse & normalize orderItems (string or array format)
+    // ────────────────────────────────────────────
+
+    let calculatedItems = [];
+    const rawOrderItems = body.orderItems || body.order_items || body.items || body.products;
+
+    if (typeof rawOrderItems === 'string' && rawOrderItems.trim() !== '') {
+      // Split string by line breaks or commas e.g. "2x Zinger Burger, 1x Fries"
+      const lines = rawOrderItems.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+      if (lines.length > 0) {
+        const itemPrice = passedTotal > 0 ? Math.round((passedTotal / lines.length) * 100) / 100 : 0;
+        calculatedItems = lines.map((line) => {
+          const match = line.match(/^(\d+)\s*x?\s*(.+)$/i);
+          const qty = match ? Math.max(1, Number(match[1])) : 1;
+          const pName = match ? match[2].trim() : line;
+          return {
+            product_name: pName,
+            quantity: qty,
+            unit_price: itemPrice,
+            total: itemPrice * qty,
+          };
+        });
+      }
+    } else if (Array.isArray(rawOrderItems) && rawOrderItems.length > 0) {
+      calculatedItems = rawOrderItems.map((item) => {
+        const pName = typeof item === 'string' ? item : String(item.productName || item.name || item.product_name || 'Item').trim();
+        const qty = typeof item === 'object' ? Math.max(1, Number(item.quantity ?? item.qty ?? 1) || 1) : 1;
+        const price = typeof item === 'object' ? Math.max(0, Number(item.unitPrice ?? item.price ?? 0) || 0) : 0;
+        return {
+          product_name: pName,
+          quantity: qty,
+          unit_price: price,
+          total: Math.round(qty * price * 100) / 100,
+        };
+      });
+    }
+
+    if (calculatedItems.length === 0) {
+      calculatedItems = [{
+        product_name: typeof rawOrderItems === 'string' && rawOrderItems.trim() ? rawOrderItems.trim() : 'n8n Order Item',
+        quantity: 1,
+        unit_price: passedTotal,
+        total: passedTotal,
+      }];
+    }
+
+    const calculatedSubtotal = calculatedItems.reduce((sum, item) => sum + item.total, 0);
+    const finalTotal = passedTotal > 0 ? passedTotal : calculatedSubtotal;
+    const finalSubtotal = finalTotal;
+
+    // ────────────────────────────────────────────
+    // 3. Generate unique primary key ID & display order number
     // ────────────────────────────────────────────
 
     const { count, error: countErr } = await supabase
@@ -80,29 +99,23 @@ export const createIntegrationOrder = async (req, res) => {
     }
 
     const orderSequence = (count || 0) + 1;
-    const orderNumber = `ORD-${1000 + orderSequence}`;
+    const displayOrderNumber = n8nOrderId ? String(n8nOrderId).trim() : `ORD-${1000 + orderSequence}`;
     const uniqueSuffix = `${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
-    const orderId = `ORD-${uniqueSuffix}`;
-
-    // ────────────────────────────────────────────
-    // 5. Create order + items as a transaction
-    //    Using Supabase RPC with a plpgsql function
-    //    Fallback: sequential inserts with cleanup
-    // ────────────────────────────────────────────
+    const primaryKeyId = `ORD-${uniqueSuffix}`;
 
     const orderRecord = {
-      id: orderId,
+      id: primaryKeyId,
       restaurant_id: restaurantId,
-      order_number: String(1000 + orderSequence),
-      customer_name: customerName.trim(),
-      phone: phone.trim(),
-      address: (address || 'Pickup').trim(),
-      order_type: orderType.trim(),
-      subtotal,
-      delivery_fee: parsedDeliveryFee,
-      discount: parsedDiscount,
-      total,
-      notes: (notes || '').trim(),
+      order_number: displayOrderNumber,
+      customer_name: customerName,
+      phone: phone,
+      address: address,
+      order_type: 'DELIVERY',
+      subtotal: finalSubtotal,
+      delivery_fee: 0,
+      discount: 0,
+      total: finalTotal,
+      notes: '',
       status: 'New',
     };
 
@@ -151,7 +164,7 @@ export const createIntegrationOrder = async (req, res) => {
     }
 
     // ────────────────────────────────────────────
-    // 6. Return success response
+    // 6. Return success response with 6 required fields
     // ────────────────────────────────────────────
 
     return res.status(201).json({
@@ -159,25 +172,21 @@ export const createIntegrationOrder = async (req, res) => {
       message: 'Order created successfully',
       order: {
         id: createdOrder.id,
-        orderNumber,
+        orderId: createdOrder.order_number,
+        orderNumber: createdOrder.order_number,
         restaurantId: createdOrder.restaurant_id,
         status: createdOrder.status,
         customerName: createdOrder.customer_name,
-        phone: createdOrder.phone,
-        address: createdOrder.address,
-        orderType: createdOrder.order_type,
-        subtotal: Number(createdOrder.subtotal),
-        deliveryFee: Number(createdOrder.delivery_fee),
-        discount: Number(createdOrder.discount),
-        total: Number(createdOrder.total),
-        notes: createdOrder.notes,
-        items: (createdItems || []).map((i) => ({
+        phoneNumber: createdOrder.phone,
+        deliveryAddress: createdOrder.address,
+        orderItems: (createdItems || []).map((i) => ({
           id: i.id,
           productName: i.product_name,
           quantity: i.quantity,
           unitPrice: Number(i.unit_price),
           total: Number(i.total),
         })),
+        totalAmount: Number(createdOrder.total),
         createdAt: createdOrder.created_at,
       },
     });
@@ -186,6 +195,7 @@ export const createIntegrationOrder = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Internal server error while creating order.',
+      error: err.message,
     });
   }
 };

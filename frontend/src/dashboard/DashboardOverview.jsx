@@ -202,9 +202,12 @@ export function DashboardOverview() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                <th className="py-3 px-4">Order #</th>
-                <th className="py-3 px-4">Customer</th>
-                <th className="py-3 px-4">Total</th>
+                <th className="py-3 px-4">Order ID</th>
+                <th className="py-3 px-4">Customer Name</th>
+                <th className="py-3 px-4">Phone Number</th>
+                <th className="py-3 px-4">Order Items</th>
+                <th className="py-3 px-4">Delivery Address</th>
+                <th className="py-3 px-4">Total Amount</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4 text-right">Action</th>
               </tr>
@@ -213,38 +216,64 @@ export function DashboardOverview() {
               {recentOrders.map((order) => {
                 const isNew =
                   order.status === 'New' || order.status === 'Pending' || order.status === 'NEW';
+                const itemsSummary = (order.items || [])
+                  .map((item) => `${item.quantity}x ${item.name || item.productName || 'Item'}`)
+                  .join(', ') || 'N/A';
+                const displayId = order.orderNumber || order.id;
+
                 return (
                   <tr
                     key={order.id}
                     className={`transition-colors cursor-pointer ${
                       isNew ? 'bg-amber-50/80 animate-pulse hover:bg-amber-100/80' : 'hover:bg-slate-50'
                     }`}
-                    onClick={() => navigate(`/orders/${order.id}`)}
+                    onClick={() => navigate(`/orders`)}
                   >
-                    <td className="py-3.5 px-4 font-mono font-bold text-emerald-700">
+                    {/* 1. Order ID */}
+                    <td className="py-3.5 px-4 font-mono font-bold text-emerald-700 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
-                        <span>{order.id}</span>
+                        <span>{displayId}</span>
                         {isNew && <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />}
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 font-bold text-slate-900">
-                      {order.customerName}
+                    {/* 2. Customer Name */}
+                    <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap">
+                      {order.customerName || 'Guest Customer'}
                     </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
-                      {formatCurrency(order.totalAmount)}
+                    {/* 3. Phone Number */}
+                    <td className="py-3.5 px-4 font-mono text-slate-600 whitespace-nowrap">
+                      {order.customerPhone || order.phone || 'N/A'}
                     </td>
-                    <td className="py-3.5 px-4">
+                    {/* 4. Order Items */}
+                    <td className="py-3.5 px-4 max-w-xs text-slate-700">
+                      <div className="line-clamp-2" title={itemsSummary}>
+                        {itemsSummary}
+                      </div>
+                    </td>
+                    {/* 5. Delivery Address */}
+                    <td className="py-3.5 px-4 max-w-xs text-slate-600">
+                      <div className="line-clamp-2" title={order.deliveryAddress || order.address}>
+                        {order.deliveryAddress || order.address || 'Pickup'}
+                      </div>
+                    </td>
+                    {/* 6. Total Amount */}
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">
+                      {formatCurrency(order.totalAmount || order.total || 0)}
+                    </td>
+                    {/* Status */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <StatusBadge status={order.status} />
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    {/* Action */}
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/orders/${order.id}`);
+                          navigate(`/orders`);
                         }}
                         className="text-xs font-bold text-slate-600 hover:text-emerald-700 transition-colors"
                       >
-                        View Details →
+                        View Orders →
                       </button>
                     </td>
                   </tr>
