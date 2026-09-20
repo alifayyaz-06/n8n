@@ -271,18 +271,34 @@ export const login = async (req, res) => {
     });
 
     if (error || !data?.session) {
-      // Fallback mode: allow dummy password login for registered phone numbers or demo testing
-      const { data: dbRestaurant } = await supabase
+      // Fallback mode: allow dummy password login for any registered phone number in DB or memory
+      const { data: dbRestaurants } = await supabase
         .from('restaurants')
-        .select('*')
-        .or(`phone.eq.${phoneOrEmail},phone.eq.${cleanPhone}`)
-        .maybeSingle();
+        .select('*');
 
-      const matchedMemory = memoryRestaurants.find(
-        (r) => r.phone === phoneOrEmail || r.phone.replace(/\D/g, '') === cleanPhone || r.email === phoneOrEmail
-      );
+      const targetDigits = cleanPhone.slice(-10);
 
-      const matched = dbRestaurant || matchedMemory;
+      let matched = (dbRestaurants || []).find((r) => {
+        if (!r.phone && !r.email) return false;
+        const rClean = String(r.phone || '').replace(/\D/g, '');
+        return (
+          r.phone === phoneOrEmail ||
+          (rClean && targetDigits && rClean.endsWith(targetDigits)) ||
+          r.email === phoneOrEmail ||
+          r.email === loginEmail
+        );
+      });
+
+      if (!matched) {
+        matched = memoryRestaurants.find((r) => {
+          const rClean = String(r.phone || '').replace(/\D/g, '');
+          return (
+            r.phone === phoneOrEmail ||
+            (rClean && targetDigits && rClean.endsWith(targetDigits)) ||
+            r.email === phoneOrEmail
+          );
+        });
+      }
 
       if (matched) {
         const token = `DEMO_TOKEN_${matched.id}`;
@@ -297,7 +313,7 @@ export const login = async (req, res) => {
 
       return res.status(401).json({
         success: false,
-        message: 'Invalid phone number or password. Account not found in database.',
+        message: `Phone number '${phoneOrEmail}' is not registered in database. Please register your restaurant first.`,
       });
     }
 
