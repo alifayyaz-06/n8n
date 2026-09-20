@@ -18,92 +18,45 @@ import crypto from 'crypto';
 export const createIntegrationOrder = async (req, res) => {
   try {
     const restaurantId = req.integration.restaurantId;
-    const {
-      customerName,
-      phone,
-      address,
-      orderType,
-      items,
-      deliveryFee,
-      discount,
-      notes,
-    } = req.body;
+    const body = req.body || {};
 
-    // ────────────────────────────────────────────
-    // 1. Validate required fields
-    // ────────────────────────────────────────────
+    // Normalize customer details with smart defaults
+    const customerName = String(body.customerName || body.customer_name || body.name || body.clientName || 'Guest Customer').trim();
+    const phone = String(body.phone || body.customerPhone || body.customer_phone || body.mobile || 'N/A').trim();
+    const address = String(body.address || body.deliveryAddress || body.customerAddress || 'Delivery Address').trim();
+    const orderType = String(body.orderType || body.order_type || 'DELIVERY').toUpperCase();
+    const notes = String(body.notes || body.instructions || body.comment || '').trim();
 
-    const errors = [];
+    const parsedDeliveryFee = Math.max(0, Number(body.deliveryFee ?? body.delivery_fee ?? 0) || 0);
+    const parsedDiscount = Math.max(0, Number(body.discount ?? 0) || 0);
 
-    if (!customerName || typeof customerName !== 'string' || customerName.trim() === '') {
-      errors.push('customerName is required.');
+    // Flexible items array normalization (supports items, order_items, products, or top-level single item)
+    let rawItems = body.items || body.order_items || body.products || [];
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
+      if (body.productName || body.product_name || body.item) {
+        rawItems = [{
+          productName: body.productName || body.product_name || body.item,
+          quantity: body.quantity || body.qty || 1,
+          unitPrice: body.unitPrice || body.unit_price || body.price || 0,
+        }];
+      } else {
+        rawItems = [{
+          productName: 'n8n Order Item',
+          quantity: 1,
+          unitPrice: 0,
+        }];
+      }
     }
 
-    if (!phone || typeof phone !== 'string' || phone.trim() === '') {
-      errors.push('phone is required.');
-    }
-
-    if (!orderType || typeof orderType !== 'string' || orderType.trim() === '') {
-      errors.push('orderType is required.');
-    }
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      errors.push('items must be a non-empty array.');
-    }
-
-    // Validate deliveryFee and discount are not negative
-    const parsedDeliveryFee = Number(deliveryFee) || 0;
-    const parsedDiscount = Number(discount) || 0;
-
-    if (parsedDeliveryFee < 0) {
-      errors.push('deliveryFee must not be negative.');
-    }
-
-    if (parsedDiscount < 0) {
-      errors.push('discount must not be negative.');
-    }
-
-    // ────────────────────────────────────────────
-    // 2. Validate each item
-    // ────────────────────────────────────────────
-
-    if (Array.isArray(items)) {
-      items.forEach((item, index) => {
-        if (!item.productName || typeof item.productName !== 'string' || item.productName.trim() === '') {
-          errors.push(`items[${index}].productName is required.`);
-        }
-
-        const qty = Number(item.quantity);
-        if (!Number.isFinite(qty) || qty <= 0) {
-          errors.push(`items[${index}].quantity must be greater than 0.`);
-        }
-
-        const price = Number(item.unitPrice);
-        if (!Number.isFinite(price) || price < 0) {
-          errors.push(`items[${index}].unitPrice must not be negative.`);
-        }
-      });
-    }
-
-    if (errors.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed.',
-        errors,
-      });
-    }
-
-    // ────────────────────────────────────────────
-    // 3. Calculate totals on the backend
-    // ────────────────────────────────────────────
-
-    const calculatedItems = items.map((item) => {
-      const quantity = Number(item.quantity);
-      const unitPrice = Number(item.unitPrice);
+    // Calculate totals on the backend
+    const calculatedItems = rawItems.map((item) => {
+      const pName = String(item.productName || item.product_name || item.name || item.title || 'Item').trim();
+      const quantity = Math.max(1, Number(item.quantity ?? item.qty ?? 1) || 1);
+      const unitPrice = Math.max(0, Number(item.unitPrice ?? item.unit_price ?? item.price ?? 0) || 0);
       const itemTotal = Math.round(quantity * unitPrice * 100) / 100;
 
       return {
-        product_name: item.productName.trim(),
+        product_name: pName,
         quantity,
         unit_price: unitPrice,
         total: itemTotal,
