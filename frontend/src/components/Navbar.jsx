@@ -125,22 +125,6 @@ export function Navbar() {
             </>
           )}
         </NavLink>
-
-        {/* User Info / Logout */}
-        <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-          <div className="text-right text-xs hidden lg:block">
-            <p className="font-bold text-slate-800 leading-tight">{user?.email || user?.phone || 'Admin'}</p>
-            <p className="text-[10px] text-slate-400 font-medium">Restaurant Admin</p>
-          </div>
-          <button
-            onClick={logout}
-            className="p-2 text-slate-500 hover:text-rose-600 rounded-xl hover:bg-rose-50 border border-slate-200 transition-colors flex items-center gap-1 text-xs font-bold"
-            title="Log out of tenant session"
-          >
-            <LogOut className="w-4 h-4" />
-            <span className="hidden md:inline">Logout</span>
-          </button>
-        </div>
       </div>
     </header>
   );

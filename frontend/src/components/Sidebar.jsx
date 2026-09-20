@@ -1,16 +1,16 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, ShoppingBag, Bike, Settings, Terminal, Store, LogOut } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Bike, Settings, Store, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export function Sidebar() {
-  const { restaurant, user, logout } = useAuth();
+  const { restaurant, logout } = useAuth();
 
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/orders', label: 'Orders', icon: ShoppingBag },
     { to: '/riders', label: 'Riders & Pending Cash', icon: Bike },
-    { to: '/settings', label: 'Settings Terminal', icon: Terminal },
+    { to: '/settings', label: 'Settings', icon: Settings },
   ];
 
   return (
@@ -25,7 +25,6 @@ export function Sidebar() {
           <p className="text-sm font-extrabold text-slate-900 truncate">
             {restaurant?.name || 'Gourmet Bistro'}
           </p>
-          <p className="text-[11px] text-slate-500 truncate">{user?.email || 'admin@gourmet.com'}</p>
         </div>
 
         {/* Navigation Items */}
@@ -53,7 +52,7 @@ export function Sidebar() {
         </nav>
       </div>
 
-      <div className="pt-4 border-t border-slate-200 space-y-2">
+      <div className="pt-4 border-t border-slate-200">
         <button
           onClick={logout}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-rose-700 hover:bg-rose-50 transition-colors"
@@ -61,11 +60,6 @@ export function Sidebar() {
           <LogOut className="w-4 h-4 text-slate-400 group-hover:text-rose-600" />
           <span>Sign Out</span>
         </button>
-
-        <div className="flex items-center gap-2 px-4 py-1 text-[11px] text-slate-400 font-medium">
-          <Settings className="w-3.5 h-3.5 text-slate-300" />
-          <span>v2.0 Multi-Tenant SaaS</span>
-        </div>
       </div>
     </aside>
   );
