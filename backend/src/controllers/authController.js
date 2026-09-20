@@ -3,6 +3,7 @@
  */
 
 import { supabase } from '../db.js';
+import crypto from 'crypto';
 
 const MASTER_KEY = process.env.MASTER_KEY || 'MASTER-KEY-2026';
 
@@ -176,10 +177,10 @@ export const registerRestaurant = async (req, res) => {
     }
 
     const generatedEmail = `${cleanPhone}@restaurant.local`;
-    const generatedRestaurantId = `r${Date.now().toString()}-0000-0000-0000-000000000000`.slice(0, 36);
+    const generatedRestaurantId = crypto.randomUUID();
 
     // 1. Create Restaurant in Supabase DB
-    const { data: restaurant } = await supabase
+    const { data: restaurant, error: restErr } = await supabase
       .from('restaurants')
       .insert([
         {
@@ -191,6 +192,15 @@ export const registerRestaurant = async (req, res) => {
       ])
       .select()
       .single();
+
+    if (restErr) {
+      console.error('❌ Supabase restaurant insert error:', restErr);
+      return res.status(500).json({
+        success: false,
+        message: `Failed to insert restaurant into Supabase database: ${restErr.message}`,
+        error: restErr.message,
+      });
+    }
 
     // 2. Register User in Supabase Auth using phone-backed identity
     let authUser = null;
@@ -207,29 +217,22 @@ export const registerRestaurant = async (req, res) => {
       await supabase.from('restaurant_users').insert([
         {
           user_id: authUser.id,
-          restaurant_id: restaurant?.id || generatedRestaurantId,
+          restaurant_id: restaurant.id,
           role: 'restaurant_admin',
         },
       ]);
     }
 
-    const newRestaurantRecord = restaurant || {
-      id: generatedRestaurantId,
-      name: restaurantName,
-      phone,
-      email: generatedEmail,
-    };
+    memoryRestaurants.push(restaurant);
 
-    memoryRestaurants.push(newRestaurantRecord);
-
-    const token = `DEMO_TOKEN_${generatedRestaurantId}`;
+    const token = `DEMO_TOKEN_${restaurant.id}`;
 
     return res.status(201).json({
       success: true,
-      message: 'Restaurant account created successfully!',
+      message: 'Restaurant account created successfully in database!',
       token,
       user: { id: authUser?.id || `usr-${Date.now()}`, phone },
-      restaurant: newRestaurantRecord,
+      restaurant,
       role: 'restaurant_admin',
     });
   } catch (err) {
