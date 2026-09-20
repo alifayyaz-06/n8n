@@ -181,7 +181,7 @@ export const registerRestaurant = async (req, res) => {
     const passwordHash = crypto.createHash('sha256').update(String(password)).digest('hex');
 
     // 1. Create Restaurant in Supabase DB with password hash
-    const { data: restaurant, error: restErr } = await supabase
+    let { data: restaurant, error: restErr } = await supabase
       .from('restaurants')
       .insert([
         {
@@ -194,6 +194,26 @@ export const registerRestaurant = async (req, res) => {
       ])
       .select()
       .single();
+
+    // Fallback if password_hash column is not yet in Supabase DB / PostgREST schema cache
+    if (restErr && restErr.message?.includes('password_hash')) {
+      console.warn('⚠️ password_hash column missing in Supabase schema. Inserting without password_hash...');
+      const fallbackResult = await supabase
+        .from('restaurants')
+        .insert([
+          {
+            id: generatedRestaurantId,
+            name: restaurantName,
+            phone,
+            email: generatedEmail,
+          },
+        ])
+        .select()
+        .single();
+
+      restaurant = fallbackResult.data;
+      restErr = fallbackResult.error;
+    }
 
     if (restErr) {
       console.error('❌ Supabase restaurant insert error:', restErr);
