@@ -1,5 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { orderService } from '../services/orderService';
+import {
+  enableAudioAndNotifications,
+  playChimeTone,
+  triggerBrowserNotification,
+} from '../utils/soundAndNotification';
 
 const OrderContext = createContext(null);
 
@@ -8,6 +13,10 @@ export function OrderProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionError, setActionError] = useState(null);
+  const [needsAudioPermission, setNeedsAudioPermission] = useState(true);
+
+  // Track initial load to distinguish existing orders from newly arrived orders
+  const isInitialLoadRef = useRef(true);
 
   /**
    * Fetch all orders from backend API
@@ -20,6 +29,20 @@ export function OrderProvider({ children }) {
     setError(null);
     try {
       const data = await orderService.getOrders();
+
+      // Trigger native browser notification for new orders after initial load
+      if (!isInitialLoadRef.current && Array.isArray(data)) {
+        const unacknowledged = data.filter((o) => {
+          const s = String(o.status).toLowerCase();
+          return s === 'new' || s === 'pending';
+        });
+        unacknowledged.forEach((o) => triggerBrowserNotification(o));
+      }
+
+      if (isInitialLoadRef.current) {
+        isInitialLoadRef.current = false;
+      }
+
       setOrders(data);
     } catch (err) {
       if (!isSilent) {
@@ -43,6 +66,35 @@ export function OrderProvider({ children }) {
 
     return () => clearInterval(intervalId);
   }, [fetchOrders]);
+
+  // Compute number of unacknowledged new orders
+  const newOrders = orders.filter((o) => {
+    const s = String(o.status).toLowerCase();
+    return s === 'new' || s === 'pending';
+  });
+  const newOrdersCount = newOrders.length;
+
+  // Sound repeat interval effect (repeats sound every 4 seconds while newOrdersCount > 0)
+  useEffect(() => {
+    if (newOrdersCount === 0) return;
+
+    // Play chime tone
+    playChimeTone();
+
+    // Repeat chime tone every 4 seconds while unacknowledged new orders exist
+    const soundInterval = setInterval(() => {
+      playChimeTone();
+    }, 4000);
+
+    return () => clearInterval(soundInterval);
+  }, [newOrdersCount]);
+
+  const handleEnableAudio = async () => {
+    const success = await enableAudioAndNotifications();
+    if (success) {
+      setNeedsAudioPermission(false);
+    }
+  };
 
   /**
    * Update status of an order via backend PATCH endpoint
@@ -77,6 +129,7 @@ export function OrderProvider({ children }) {
     try {
       const newOrder = await orderService.createOrder(orderPayload);
       setOrders((prev) => [newOrder, ...prev]);
+      triggerBrowserNotification(newOrder);
       return newOrder;
     } catch (err) {
       const msg = err.message || 'Failed to create order.';
@@ -107,6 +160,10 @@ export function OrderProvider({ children }) {
     <OrderContext.Provider
       value={{
         orders,
+        newOrdersCount,
+        newOrders,
+        needsAudioPermission,
+        enableAudio: handleEnableAudio,
         loading,
         error,
         actionError,

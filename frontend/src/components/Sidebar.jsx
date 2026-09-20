@@ -2,13 +2,15 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, ShoppingBag, Bike, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useOrders } from '../context/OrderContext';
 
 export function Sidebar() {
   const { logout } = useAuth();
+  const { newOrdersCount } = useOrders();
 
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/orders', label: 'Orders', icon: ShoppingBag },
+    { to: '/orders', label: 'Orders', icon: ShoppingBag, badgeCount: newOrdersCount },
     { to: '/riders', label: 'Riders & Pending Cash', icon: Bike },
     { to: '/settings', label: 'Settings', icon: Settings },
   ];
@@ -26,15 +28,22 @@ export function Sidebar() {
                 to={item.to}
                 end={item.to === '/'}
                 className={({ isActive }) =>
-                  `w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                  `w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
                     isActive
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold shadow-xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`
                 }
               >
-                <Icon className="w-5 h-5 text-emerald-600" />
-                <span>{item.label}</span>
+                <div className="flex items-center gap-3">
+                  <Icon className="w-5 h-5 text-emerald-600" />
+                  <span>{item.label}</span>
+                </div>
+                {item.badgeCount > 0 && (
+                  <span className="px-2 py-0.5 text-xs font-extrabold rounded-full bg-amber-500 text-white animate-pulse">
+                    {item.badgeCount}
+                  </span>
+                )}
               </NavLink>
             );
           })}

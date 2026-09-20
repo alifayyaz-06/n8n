@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
-import { UtensilsCrossed, LayoutDashboard, ShoppingBag, Bike, Wallet, LogOut } from 'lucide-react';
+import { UtensilsCrossed, LayoutDashboard, ShoppingBag, Bike, Wallet, BellRing, Volume2 } from 'lucide-react';
 import { riderService } from '../services/riderService';
 import { useAuth } from '../context/AuthContext';
+import { useOrders } from '../context/OrderContext';
 import { formatCurrency } from '../utils/formatters';
 
 export function Navbar() {
-  const { restaurant, user, logout } = useAuth();
+  const { restaurant } = useAuth();
+  const { newOrdersCount, needsAudioPermission, enableAudio } = useOrders();
   const [totalPendingCash, setTotalPendingCash] = useState(0);
 
   const fetchPendingCash = useCallback(async () => {
@@ -23,14 +25,14 @@ export function Navbar() {
   useEffect(() => {
     fetchPendingCash();
 
-    // Listen for live rider mutation events (settle balance, assign rider, create, update, delete)
+    // Listen for live rider mutation events
     const handleRiderUpdate = () => {
       fetchPendingCash();
     };
 
     window.addEventListener('riderDataChanged', handleRiderUpdate);
 
-    // Short interval polling (every 3 seconds) for live sync
+    // Short interval polling for live sync
     const interval = setInterval(() => {
       fetchPendingCash();
     }, 3000);
@@ -58,57 +60,47 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Navigation Tabs */}
-      <nav className="flex md:hidden items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
-        <NavLink
-          to="/"
-          end
-          className={({ isActive }) =>
-            `px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-              isActive
-                ? 'bg-white text-emerald-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`
-          }
-        >
-          <LayoutDashboard className="w-3.5 h-3.5" />
-          <span>Dashboard</span>
-        </NavLink>
-        <NavLink
-          to="/orders"
-          className={({ isActive }) =>
-            `px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-              isActive
-                ? 'bg-white text-emerald-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`
-          }
-        >
-          <ShoppingBag className="w-3.5 h-3.5" />
-          <span>Orders</span>
-        </NavLink>
-        <NavLink
-          to="/riders"
-          className={({ isActive }) =>
-            `px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-              isActive
-                ? 'bg-white text-emerald-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`
-          }
-        >
-          <Bike className="w-3.5 h-3.5" />
-          <span>Riders</span>
-        </NavLink>
-      </nav>
+      {/* Status Badges, New Orders Counter & Rider Pending Cash */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Persistent New Orders Counter Badge */}
+        {newOrdersCount > 0 ? (
+          <NavLink
+            to="/orders"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500 text-white font-extrabold text-xs shadow-md animate-pulse border border-amber-600"
+          >
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+            </span>
+            <BellRing className="w-3.5 h-3.5 animate-bounce" />
+            <span>🔴 NEW ORDERS ({newOrdersCount})</span>
+          </NavLink>
+        ) : (
+          <NavLink
+            to="/orders"
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 text-xs font-bold border border-slate-200"
+          >
+            <span>NEW ORDERS (0)</span>
+          </NavLink>
+        )}
 
-      {/* Status Badges, Rider Pending Amount Quick Link & Actions */}
-      <div className="hidden sm:flex items-center gap-3">
+        {/* Audio Context Enable Button */}
+        {needsAudioPermission && (
+          <button
+            onClick={enableAudio}
+            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300 transition-all shadow-xs"
+            title="Enable Audio Chime Notifications"
+          >
+            <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Enable Sound</span>
+          </button>
+        )}
+
         {/* Rider Pending Cash Badge Link */}
         <NavLink
           to="/riders"
           className={({ isActive }) =>
-            `flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+            `hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
               isActive
                 ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                 : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
