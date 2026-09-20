@@ -11,22 +11,37 @@ export function OrderProvider({ children }) {
 
   /**
    * Fetch all orders from backend API
+   * @param {boolean} isSilent - If true, fetches in background without triggering full-screen loading state
    */
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
+  const fetchOrders = useCallback(async (isSilent = false) => {
+    if (!isSilent) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const data = await orderService.getOrders();
       setOrders(data);
     } catch (err) {
-      setError(err.message || 'Unable to connect to backend order service.');
+      if (!isSilent) {
+        setError(err.message || 'Unable to connect to backend order service.');
+      }
     } finally {
-      setLoading(false);
+      if (!isSilent) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
+    // Initial fetch with loading state
     fetchOrders();
+
+    // Auto-poll live order data silently every 5 seconds
+    const intervalId = setInterval(() => {
+      fetchOrders(true);
+    }, 5000);
+
+    return () => clearInterval(intervalId);
   }, [fetchOrders]);
 
   /**

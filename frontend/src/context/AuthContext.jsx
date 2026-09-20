@@ -19,10 +19,14 @@ export function AuthProvider({ children }) {
         setRole(data.role);
       } else {
         // Default initial session for immediate preview
-        const defaultDemo = await authService.login('admin@gourmet.com', '');
-        setUser(defaultDemo.user);
-        setRestaurant(defaultDemo.restaurant);
-        setRole(defaultDemo.role);
+        try {
+          const defaultDemo = await authService.login('03001234567', '');
+          setUser(defaultDemo.user);
+          setRestaurant(defaultDemo.restaurant);
+          setRole(defaultDemo.role);
+        } catch (demoErr) {
+          console.warn('Demo login fallback warning:', demoErr.message);
+        }
       }
     } catch (err) {
       console.warn('Auth init failed:', err);
