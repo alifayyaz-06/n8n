@@ -46,7 +46,7 @@ app.use(express.json());
 app.get('/api/health', async (req, res) => {
   const dbConnected = await testSupabaseConnection();
   res.status(200).json({
-    status: 'UP',
+    status: '200',
     database: dbConnected ? 'CONNECTED' : 'DISCONNECTED',
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
